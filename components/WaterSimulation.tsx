@@ -128,18 +128,42 @@ function Facility({
   );
 }
 
-// 2. AI Control Centre (Wireless telemetry hub)
-function AIControlCentre({ position, color, size, label }: { position: number[] | [number, number, number], color: string, size: [number, number, number], label: string }) {
+// 2. AI Control Centre (Wireless telemetry hub - Upgraded for 3D Models)
+function AIControlCentre({ 
+  position, 
+  color, 
+  size, 
+  label,
+  modelPath,
+  scale = 1,
+  modelOffset = 0,
+  rotation = [0, 0, 0]
+}: { 
+  position: number[] | [number, number, number], 
+  color: string, 
+  size: [number, number, number], 
+  label: string,
+  modelPath?: string,
+  scale?: number,
+  modelOffset?: number,
+  rotation?: [number, number, number]
+}) {
+  const gltf = modelPath ? useGLTF(modelPath) : null;
+
   return (
     <group position={position as [number, number, number]}>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={color} roughness={0.3} metalness={0.5} />
-      </mesh>
+      {modelPath && gltf ? (
+        <primitive object={gltf.scene.clone()} scale={scale} position={[0, modelOffset, 0]} rotation={rotation} />
+      ) : (
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={size} />
+          <meshStandardMaterial color={color} roughness={0.3} metalness={0.5} />
+        </mesh>
+      )}
       
-      <Antenna position={[0, size[1] / 2, 0]} />
+      <Antenna position={[0, size[1] / 2 + (modelPath ? 1.5 : 0), 0]} />
 
-      <Html position={[0, size[1] / 2 + 1.5, 0]} center zIndexRange={[100, 0]}>
+      <Html position={[0, size[1] / 2 + (modelPath ? 3.2 : 1.5), 0]} center zIndexRange={[100, 0]}>
         <div className="px-3 py-1 bg-white/95 backdrop-blur-md text-purple-700 text-xs font-bold tracking-wider rounded border border-purple-300 shadow-md whitespace-nowrap pointer-events-none select-none">
           {label}
         </div>
@@ -381,8 +405,16 @@ export default function WaterSimulation() {
         <UndergroundPipe start={[0, 0]} end={[8, 8]} isFlowing={false} /> 
 
         {/* === THE ZONES (Placed at exact corners ±8) === */}
-        <AIControlCentre position={[0, 0.5, 0]} color="#8b5cf6" size={[2, 1.5, 2]} label="AI CONTROL CENTRE" />
-        
+        <AIControlCentre 
+          position={[0, 0.5, 0]} 
+          color="#8b5cf6" 
+          size={[2, 1.5, 2]} 
+          label="AI CONTROL CENTRE" 
+          modelPath="/models/ai_center.glb" // <-- Make sure to match your file name!
+          scale={1.5} 
+          modelOffset={-0.5} 
+        />
+
         <Facility 
           position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} 
           label="MUNICIPAL RESERVOIR " 
