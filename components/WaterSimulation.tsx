@@ -5,46 +5,46 @@ import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Grid, Html, QuadraticBezierLine, useGLTF } from "@react-three/drei";
 
-// Define your coordinates, scales, or rotations here
-const treeCoordinates = [
-  //trees near reservoir
-  { position: [-11, 0.01, -6.25], scale: 0.004 },
-  { position: [-10, 0.01, -6.25], scale: 0.004 },
-  { position: [-9, 0.01, -6.25], scale: 0.004 },
-  { position: [-8, 0.01, -6.25], scale: 0.004 },
+// Smart Helper: Added TypeScript types and reduced tree density
+const generateForest = (startX: number, endX: number, startZ: number, endZ: number, step: number) => {
+  const trees = [];
+  for (let x = startX; x <= endX; x += step) {
+    for (let z = startZ; z <= endZ; z += step) {
+      
+      // --- EXCLUSION ZONES: Don't plant trees inside these building areas! ---
+      const nearReservoir = x < -5 && z < -5;
+      const nearIndustry = x > 5 && z < -5;
+      const nearCity = x < -5 && z > 5;
+      const nearFarm = x > 5 && z > 5;
+      const nearCenter = Math.abs(x) < 3 && Math.abs(z) < 3; // AI Hub
+      
+      // If the coordinate falls in a building zone, skip this loop step entirely
+      if (nearReservoir || nearIndustry || nearCity || nearFarm || nearCenter) {
+        continue; 
+      }
 
-  //between reservoir and urban grid
-  { position: [-11, 0.01, -5], scale: 0.004 },
-  { position: [-10, 0.01, -5], scale: 0.004 },
-  { position: [-9, 0.01, -5], scale: 0.004 },
-  { position: [-8, 0.01, -5], scale: 0.004 },
+      // Add slight randomness for a natural look
+      const randomOffsetX = (Math.random() - 0.5) * (step * 0.5);
+      const randomOffsetZ = (Math.random() - 0.5) * (step * 0.5);
+      
+      // Adjusted to match your desired scale around 0.004
+      const randomScale = 0.003 + (Math.random() * 0.002); 
+      
+      // Changed from 0.2 to 0.6: Now only has a 40% chance to spawn a tree, thinning the forest
+      if (Math.random() > 0.5) {
+        trees.push({
+          position: [x + randomOffsetX, 0.01, z + randomOffsetZ],
+          scale: randomScale,
+          rotation: [0, Math.random() * Math.PI, 0] 
+        });
+      }
+    }
+  }
+  return trees;
+};
 
-  { position: [-11, 0.01, -3.75], scale: 0.004 },
-  { position: [-10, 0.01, -3.75], scale: 0.004 },
-  { position: [-9, 0.01, -3.75], scale: 0.004 },
-  { position: [-8, 0.01, -3.75], scale: 0.004 },
-
-  { position: [-11, 0.01, -2.5], scale: 0.004 },
-  { position: [-10, 0.01, -2.5], scale: 0.004 },
-  { position: [-9, 0.01, -2.5], scale: 0.004 },
-  { position: [-8, 0.01, -2.5], scale: 0.004 },
-
-  { position: [-11, 0.01, -1.25], scale: 0.004 },
-  { position: [-10, 0.01, -1.25], scale: 0.004 },
-  { position: [-9, 0.01, -1.25], scale: 0.004 },
-  { position: [-8, 0.01, -1.25], scale: 0.004 },
-
-  { position: [-11, 0.01, 0], scale: 0.004 },
-  { position: [-10, 0.01, 0], scale: 0.004 },
-  { position: [-9, 0.01, 0], scale: 0.004 },
-  { position: [-8, 0.01, 0], scale: 0.004 },
-
-  { position: [-11, 0.01, 1.25], scale: 0.004 },
-  { position: [-10, 0.01, 1.25], scale: 0.004 },
-  { position: [-9, 0.01, 1.25], scale: 0.004 },
-  { position: [-8, 0.01, 1.25], scale: 0.004 },
-
-];
+// Increased step from 1.25 to 2.0 to spread the trees further apart
+const treeCoordinates = generateForest(-11, 11, -11, 11, 2.0);
 
 const roadCoordinates = [
   { position: [0, 0.01, -8], rotation: [0, Math.PI / 2, 0] },
@@ -262,14 +262,14 @@ export default function WaterSimulation() {
     if (isFlowing) {
       interval = setInterval(() => {
         setWaterLevels((prev) => {
-          if (prev.reservoir <= 0) {
+          if (prev.industry <= 0) {
             setIsFlowing(false);
             return prev;
           }
           return {
             ...prev,
-            reservoir: Math.max(0, prev.reservoir - 50),
-            industry: prev.industry + 50,
+            industry: Math.max(0, prev.industry - 50),
+            reservoir: prev.reservoir + 50,
           };
         });
       }, 200);
@@ -367,13 +367,18 @@ export default function WaterSimulation() {
           </mesh>
         </group>
 
-        {/* === UNDERGROUND WATER PIPELINE NETWORK (Aligned to new ±8 boundaries) === */}
-        <UndergroundPipe start={[-8, -8]} end={[8, -8]} isFlowing={isFlowing} /> 
-        <UndergroundPipe start={[8, -8]} end={[8, 8]} isFlowing={false} /> 
-        <UndergroundPipe start={[8, 8]} end={[-8, 8]} isFlowing={false} /> 
-        <UndergroundPipe start={[-8, 8]} end={[-8, -8]} isFlowing={false} /> 
-        <UndergroundPipe start={[-8, -8]} end={[8, 8]} isFlowing={false} /> 
-        <UndergroundPipe start={[8, -8]} end={[-8, 8]} isFlowing={false} /> 
+        {/* === CENTRALIZED AI WATER ROUTING PIPELINES === */}
+        {/* Route 1: Industry Park to AI Control Centre */}
+        <UndergroundPipe start={[8, -8]} end={[0, 0]} isFlowing={isFlowing} /> 
+        
+        {/* Route 2: AI Control Centre to Municipal Reservoir */}
+        <UndergroundPipe start={[0, 0]} end={[-8, -8]} isFlowing={isFlowing} /> 
+        
+        {/* Route 3: Urban Grid to AI Control Centre (Idle) */}
+        <UndergroundPipe start={[-8, 8]} end={[0, 0]} isFlowing={false} /> 
+        
+        {/* Route 4: AI Control Centre to Agricultural Sector (Idle) */}
+        <UndergroundPipe start={[0, 0]} end={[8, 8]} isFlowing={false} /> 
 
         {/* === THE ZONES (Placed at exact corners ±8) === */}
         <AIControlCentre position={[0, 0.5, 0]} color="#8b5cf6" size={[2, 1.5, 2]} label="AI CONTROL CENTRE" />
@@ -441,6 +446,7 @@ export default function WaterSimulation() {
             path="/models/tree.glb" 
             position={tree.position as [number, number, number]} 
             scale={tree.scale} 
+            rotation={tree.rotation as [number, number, number]} // <--- Add this!
           />
         ))}
 
