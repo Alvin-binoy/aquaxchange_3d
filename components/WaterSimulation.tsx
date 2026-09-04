@@ -382,10 +382,11 @@ export default function WaterSimulation() {
         
         <Grid renderOrder={-1} position={[0, -0.5, 0]} infiniteGrid fadeDistance={60} fadeStrength={5} cellColor="#e2e8f0" sectionColor="#cbd5e1" />
 
-        {/* === EXPANDED TERRAIN PLATFORM (32x32 Layout) === */}
+        {/* === SHRINKED TERRAIN PLATFORM (27.5 x 27.5 Layout) === */}
         <group position={[0, 0, 0]}>
           <mesh receiveShadow position={[0, -1.5, 0]}>
-            <boxGeometry args={[32, 3, 32]} />
+            {/* Reduced from 32 to 27.5 to cut off the extra outer land */}
+            <boxGeometry args={[25, 3, 27.5]} />
             <meshPhysicalMaterial 
               color="#f8fafc" 
               transparent 
@@ -397,7 +398,8 @@ export default function WaterSimulation() {
           </mesh>
 
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
-            <planeGeometry args={[32, 32]} />
+            {/* Reduced from 32 to 27.5 to match the box underneath */}
+            <planeGeometry args={[25, 27.5]} />
             <meshStandardMaterial color="#22c55e" roughness={0.8} metalness={0.1} />
           </mesh>
         </group>
