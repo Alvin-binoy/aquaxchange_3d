@@ -283,6 +283,92 @@ function DecorativeProp({
   return <primitive object={gltf.scene.clone()} scale={scale} position={position} rotation={rotation} />;
 }
 
+function MovingTruck({ 
+  start, 
+  end, 
+  speed = 0.04, 
+  modelPath="/models/car.glb", 
+  scale = 0.004, 
+  rotation = [0, 0, 0] 
+}: { 
+  start: [number, number, number], 
+  end: [number, number, number], 
+  speed?: number, 
+  modelPath?: string, 
+  scale?: number, 
+  rotation?: [number, number, number] 
+}) {
+  const truckRef = useRef<any>(null);
+  const gltf = modelPath ? useGLTF(modelPath) : null;
+
+  // Calculate the movement direction vector once
+  const dx = end[0] - start[0];
+  const dz = end[2] - start[2];
+  const totalDistance = Math.sqrt(dx * dx + dz * dz);
+  const dirX = dx / totalDistance;
+  const dirZ = dz / totalDistance;
+
+  // useFrame runs every frame (60fps) to animate the truck
+  useFrame(() => {
+    if (truckRef.current) {
+      // Move the truck
+      truckRef.current.position.x += dirX * speed;
+      truckRef.current.position.z += dirZ * speed;
+
+      // Calculate how far it has driven
+      const traveled = Math.sqrt(
+        Math.pow(truckRef.current.position.x - start[0], 2) + 
+        Math.pow(truckRef.current.position.z - start[2], 2)
+      );
+
+      // If it reaches the end point, teleport it back to the start
+      if (traveled >= totalDistance) {
+        truckRef.current.position.x = start[0];
+        truckRef.current.position.z = start[2];
+      }
+    }
+  });
+
+  return (
+    <group ref={truckRef} position={start} rotation={rotation as [number, number, number]}>
+      {modelPath && gltf ? (
+        <primitive object={gltf.scene.clone()} scale={scale} />
+      ) : (
+        // Fallback procedural truck (so you can test it immediately without a .glb)
+        <group position={[0, 0.25, 0]}>
+          {/* Truck Cab */}
+          <mesh position={[0.4, 0, 0]} castShadow>
+            <boxGeometry args={[0.3, 0.4, 0.3]} />
+            <meshStandardMaterial color="#0ea5e9" roughness={0.3} />
+          </mesh>
+          {/* Truck Trailer */}
+          <mesh position={[-0.2, 0.1, 0]} castShadow>
+            <boxGeometry args={[0.8, 0.6, 0.35]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.5} />
+          </mesh>
+          {/* Wheels */}
+          <mesh position={[0.4, -0.2, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.05, 16]} />
+            <meshStandardMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[0.4, -0.2, -0.2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.05, 16]} />
+            <meshStandardMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[-0.4, -0.2, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.05, 16]} />
+            <meshStandardMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[-0.4, -0.2, -0.2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.05, 16]} />
+            <meshStandardMaterial color="#1e293b" />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
 export default function WaterSimulation() {
   const [waterLevels, setWaterLevels] = useState({
     reservoir: 5000,
@@ -498,6 +584,18 @@ export default function WaterSimulation() {
             scale={2} 
           />
         ))}
+        {/* === MOVING VEHICLES === */}
+        {/* North Road (Driving East) */}
+        <MovingTruck start={[-12, 0.01, -13]} end={[12, 0.01, -13]} speed={0.06} rotation={[0, Math.PI/2 , 0]}/>
+        
+        {/* South Road (Driving West) */}
+        <MovingTruck start={[12, 0.01, 13]} end={[-12, 0.01, 13]} speed={0.05} rotation={[0, -Math.PI /2, 0]} />
+        
+        {/* East Road (Driving South) */}
+        <MovingTruck start={[11.65, 0.01, -12]} end={[11.65, 0.01, 12]} speed={0.07} rotation={[0, 0 , 0]} />
+        
+        {/* West Road (Driving North) */}
+        <MovingTruck start={[-12.65, 0.01, 12]} end={[-12.65, 0.01, -12]} speed={0.04} rotation={[0, Math.PI, 0]} />
       </Canvas>
     </div>
   );
