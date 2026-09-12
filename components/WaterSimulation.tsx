@@ -386,39 +386,49 @@ export default function WaterSimulation() {
     farm: 40,
   });
 
-  // Track the user's dropdown choices
-  const [routeConfig, setRouteConfig] = useState({ source: "reservoir", dest: "industry" });
+  // Track the user's dropdown choices and amount
+  const [routeConfig, setRouteConfig] = useState({ source: "industry", dest: "city" });
+  const [transferAmount, setTransferAmount] = useState(20);
   
   // Track the actively flowing transfer
   const [activeTransfer, setActiveTransfer] = useState<{ source: string, dest: string } | null>(null);
+  
+  // Track how much water has been pumped in the current active transfer
+  const transferredSoFar = useRef(0);
 
   useEffect(() => {
-    let interval: any;
-    if (activeTransfer) {
-      interval = setInterval(() => {
-        setWaterLevels((prev) => {
-          const src = activeTransfer.source as keyof typeof prev;
-          const dst = activeTransfer.dest as keyof typeof prev;
+    if (!activeTransfer) return;
 
-          // Define max capacities (100 for reservoir, 82 for others)
-          const getMaxCapacity = (key: string) => key === 'reservoir' ? 100 : 82;
-
-          // Stop simulation automatically if source empties or destination hits max capacity
-          if (prev[src] <= 0 || prev[dst] >= getMaxCapacity(dst)) {
-            setActiveTransfer(null);
-            return prev;
-          }
-
-          return {
-            ...prev,
-            [src]: prev[src] - 1,
-            [dst]: prev[dst] + 1,
-          };
-        });
-      }, 150); // Speed of water transfer
+    // 1. Halt if we successfully pumped the requested amount
+    if (transferredSoFar.current >= transferAmount) {
+      setActiveTransfer(null);
+      return;
     }
-    return () => clearInterval(interval);
-  }, [activeTransfer]);
+
+    const src = activeTransfer.source as keyof typeof waterLevels;
+    const dst = activeTransfer.dest as keyof typeof waterLevels;
+    const getMaxCapacity = (key: string) => (key === "reservoir" ? 100 : 82);
+
+    // 2. Halt if source empties or destination hits max capacity
+    if (waterLevels[src] <= 0 || waterLevels[dst] >= getMaxCapacity(dst)) {
+      setActiveTransfer(null);
+      return;
+    }
+
+    // 3. Schedule the next single transfer tick
+    const timer = setTimeout(() => {
+      // Safely increment outside of the state updater function
+      transferredSoFar.current += 1;
+      
+      setWaterLevels((prev) => ({
+        ...prev,
+        [src]: prev[src] - 1,
+        [dst]: prev[dst] + 1,
+      }));
+    }, 150); // Speed of water transfer
+
+    return () => clearTimeout(timer);
+  }, [activeTransfer, transferAmount, waterLevels]);
 
   // Helper functions to pass the correct booleans to the UndergroundPipe components
   const isFlowing = (key: string) => activeTransfer?.source === key || activeTransfer?.dest === key;
@@ -430,7 +440,7 @@ export default function WaterSimulation() {
       <div className="absolute top-6 left-6 z-10 bg-white p-4 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-3 w-80 pointer-events-auto">
         <h2 className="text-slate-800 font-bold text-sm tracking-wide">AI TELEMETRY & WATER LEVELS</h2>
         
-        {/* === NEW DYNAMIC ROUTING DROPDOWNS === */}
+        {/* === DYNAMIC ROUTING DROPDOWNS === */}
         <div className="flex gap-3 text-xs mb-1">
           <div className="flex flex-col gap-1 w-1/2">
             <label className="font-bold text-slate-500">Source Node</label>
@@ -462,12 +472,30 @@ export default function WaterSimulation() {
           </div>
         </div>
 
+        {/* === TRANSFER AMOUNT INPUT === */}
+        <div className="flex flex-col gap-1 mb-1 text-xs">
+          <label className="font-bold text-slate-500">Transfer Amount (L)</label>
+          <input 
+            type="number" 
+            min="1"
+            className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
+            value={transferAmount}
+            onChange={(e) => setTransferAmount(Number(e.target.value))}
+            disabled={!!activeTransfer}
+          />
+        </div>
+
         <button 
           onClick={() => {
-            if (activeTransfer) setActiveTransfer(null);
-            else if (routeConfig.source !== routeConfig.dest) setActiveTransfer(routeConfig);
+            if (activeTransfer) {
+              setActiveTransfer(null);
+            } else if (routeConfig.source !== routeConfig.dest && transferAmount > 0) {
+              // Reset the transfer counter to 0 before starting a new flow
+              transferredSoFar.current = 0;
+              setActiveTransfer(routeConfig);
+            }
           }}
-          className={`px-4 py-2 rounded-lg font-bold transition-colors text-xs tracking-wider shadow ${activeTransfer ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+          className={`px-4 py-2 mt-1 rounded-lg font-bold transition-colors text-xs tracking-wider shadow ${activeTransfer ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
         >
           {activeTransfer ? "Halt Transfer" : "Initiate AI Transfer Route"}
         </button>
