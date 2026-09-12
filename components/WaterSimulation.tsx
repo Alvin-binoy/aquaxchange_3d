@@ -110,7 +110,8 @@ function Facility({
   size, 
   label, 
   waterLevel, 
-  maxCapacity, 
+  maxCapacity,
+  minThreshold, 
   modelPath, 
   scale = 1,
   modelOffset = 1.3,
@@ -122,6 +123,7 @@ function Facility({
   label: string, 
   waterLevel?: number, 
   maxCapacity?: number,
+  minThreshold?: number,
   modelPath?: string,
   scale?: number,
   modelOffset?: number,
@@ -133,6 +135,11 @@ function Facility({
   const drillPipeCenterY = -size[1] / 2 - (drillPipeLength / 2);
 
   const percentage = waterLevel !== undefined && maxCapacity ? Math.min(100, Math.max(0, (waterLevel / maxCapacity) * 100)) : null;
+  
+  // Check if water is at or below the minimum threshold
+  const isCriticallyLow = minThreshold !== undefined && waterLevel !== undefined && waterLevel <= minThreshold;
+  const barColor = isCriticallyLow ? "bg-red-500" : "bg-[#00e5ff]";
+  const textColor = isCriticallyLow ? "text-red-400" : "text-[#00e5ff]";
 
   const gltf = modelPath ? useGLTF(modelPath) : null;
 
@@ -152,19 +159,19 @@ function Facility({
         <meshStandardMaterial color="#64748b" metalness={0.8} roughness={0.2} />
       </mesh>
       
-      {/* Lowered HTML label slightly since the antenna is gone */}
-      <Html position={[0, size[1] / 2 + (modelPath ? 2.0 : 1.0), 0]} center zIndexRange={[100, 0]}>
-        <div className="px-3 py-1.5 bg-white/95 backdrop-blur-md text-slate-800 text-xs rounded border border-slate-300 shadow-md flex flex-col gap-1 min-w-[140px] pointer-events-none select-none">
-          <div className="font-bold tracking-wider text-slate-900">{label}</div>
+      {/* RAISED & GLASSY LABEL */}
+      <Html position={[0, size[1] / 2 + (modelPath ? 4.5 : 3.5), 0]} center zIndexRange={[100, 0]}>
+        <div className="px-4 py-2.5 bg-white/30 backdrop-blur-md text-white text-xs rounded-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.2)] flex flex-col gap-1.5 min-w-[140px] pointer-events-none select-none">
+          <div className="font-extrabold tracking-wider">{label}</div>
           {waterLevel !== undefined && (
-            <div className="flex flex-col gap-0.5">
-              <div className="flex justify-between text-[10px] text-slate-600 font-semibold">
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between text-[10px] text-white/90 font-semibold tracking-wide">
                 <span>Storage:</span>
-                <span className="text-blue-600">{waterLevel} L</span>
+                <span className={`${textColor} font-bold`}>{waterLevel} L</span>
               </div>
-              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden shadow-inner">
                 <div 
-                  className="bg-blue-500 h-full transition-all duration-300" 
+                  className={`${barColor} h-full transition-all duration-300`} 
                   style={{ width: `${percentage}%` }}
                 />
               </div>
@@ -208,9 +215,9 @@ function AIControlCentre({
         </mesh>
       )}
       
-      {/* Lowered HTML label slightly since the antenna is gone */}
-      <Html position={[0, size[1] / 2 + 0.8, 0]} center zIndexRange={[100, 0]}>
-        <div className="px-3 py-1 bg-white/95 backdrop-blur-md text-purple-700 text-xs font-bold tracking-wider rounded border border-purple-300 shadow-md whitespace-nowrap pointer-events-none select-none">
+      {/* RAISED & GLASSY LABEL */}
+      <Html position={[0, size[1] / 2 + 3.5, 0]} center zIndexRange={[100, 0]}>
+        <div className="px-5 py-2 bg-white/30 backdrop-blur-md text-white text-xs font-extrabold tracking-widest rounded-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.2)] whitespace-nowrap pointer-events-none select-none">
           {label}
         </div>
       </Html>
@@ -218,12 +225,13 @@ function AIControlCentre({
   );
 }
 
-function UndergroundPipe({ start, end, isFlowing }: { start: [number, number], end: [number, number], isFlowing: boolean }) {
+function UndergroundPipe({ start, end, isFlowing, isSender }: { start: [number, number], end: [number, number], isFlowing: boolean, isSender?: boolean }) {
   const lineRef = useRef<any>(null);
 
   useFrame(() => {
     if (isFlowing && lineRef.current && lineRef.current.material) {
-      lineRef.current.material.dashOffset -= 0.06; 
+      // Senders flow inward (subtract), Receivers flow outward (add)
+      lineRef.current.material.dashOffset += isSender ? -0.06 : 0.06;
     }
   });
 
@@ -370,46 +378,98 @@ function MovingTruck({
 }
 
 export default function WaterSimulation() {
+  // Scaled down initial state to fit the new 82L/100L limits
   const [waterLevels, setWaterLevels] = useState({
-    reservoir: 5000,
-    industry: 1200,
-    city: 3000,
-    farm: 800,
+    reservoir: 100,
+    industry: 50,
+    city: 60,
+    farm: 40,
   });
 
-  const [isFlowing, setIsFlowing] = useState(false);
+  // Track the user's dropdown choices
+  const [routeConfig, setRouteConfig] = useState({ source: "reservoir", dest: "industry" });
+  
+  // Track the actively flowing transfer
+  const [activeTransfer, setActiveTransfer] = useState<{ source: string, dest: string } | null>(null);
 
   useEffect(() => {
     let interval: any;
-    if (isFlowing) {
+    if (activeTransfer) {
       interval = setInterval(() => {
         setWaterLevels((prev) => {
-          if (prev.industry <= 0) {
-            setIsFlowing(false);
+          const src = activeTransfer.source as keyof typeof prev;
+          const dst = activeTransfer.dest as keyof typeof prev;
+
+          // Define max capacities (100 for reservoir, 82 for others)
+          const getMaxCapacity = (key: string) => key === 'reservoir' ? 100 : 82;
+
+          // Stop simulation automatically if source empties or destination hits max capacity
+          if (prev[src] <= 0 || prev[dst] >= getMaxCapacity(dst)) {
+            setActiveTransfer(null);
             return prev;
           }
+
           return {
             ...prev,
-            industry: Math.max(0, prev.industry - 50),
-            reservoir: prev.reservoir + 50,
+            [src]: prev[src] - 1,
+            [dst]: prev[dst] + 1,
           };
         });
-      }, 200);
+      }, 150); // Speed of water transfer
     }
     return () => clearInterval(interval);
-  }, [isFlowing]);
+  }, [activeTransfer]);
+
+  // Helper functions to pass the correct booleans to the UndergroundPipe components
+  const isFlowing = (key: string) => activeTransfer?.source === key || activeTransfer?.dest === key;
+  const isSender = (key: string) => activeTransfer?.source === key;
 
   return (
-    <div className="w-full h-screen bg-slate-50 relative"> 
+    <div className="w-full h-screen bg-slate-950 relative"> 
       
       <div className="absolute top-6 left-6 z-10 bg-white p-4 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-3 w-80 pointer-events-auto">
         <h2 className="text-slate-800 font-bold text-sm tracking-wide">AI TELEMETRY & WATER LEVELS</h2>
         
+        {/* === NEW DYNAMIC ROUTING DROPDOWNS === */}
+        <div className="flex gap-3 text-xs mb-1">
+          <div className="flex flex-col gap-1 w-1/2">
+            <label className="font-bold text-slate-500">Source Node</label>
+            <select 
+              className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
+              value={routeConfig.source}
+              onChange={(e) => setRouteConfig({...routeConfig, source: e.target.value})}
+              disabled={!!activeTransfer}
+            >
+              <option value="reservoir">Reservoir North</option>
+              <option value="industry">Industrial Park</option>
+              <option value="city">Urban Grid</option>
+              <option value="farm">Farm Sector</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 w-1/2">
+            <label className="font-bold text-slate-500">Destination Node</label>
+            <select 
+              className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
+              value={routeConfig.dest}
+              onChange={(e) => setRouteConfig({...routeConfig, dest: e.target.value})}
+              disabled={!!activeTransfer}
+            >
+              <option value="reservoir">Reservoir North</option>
+              <option value="industry">Industrial Park</option>
+              <option value="city">Urban Grid</option>
+              <option value="farm">Farm Sector</option>
+            </select>
+          </div>
+        </div>
+
         <button 
-          onClick={() => setIsFlowing(!isFlowing)}
-          className={`px-4 py-2 rounded-lg font-bold text-white transition-colors text-xs tracking-wider shadow ${isFlowing ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+          onClick={() => {
+            if (activeTransfer) setActiveTransfer(null);
+            else if (routeConfig.source !== routeConfig.dest) setActiveTransfer(routeConfig);
+          }}
+          className={`px-4 py-2 rounded-lg font-bold transition-colors text-xs tracking-wider shadow ${activeTransfer ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
         >
-          {isFlowing ? "Halt Transfer (Industry -> Reservoir)" : "Initiate AI Transfer Route"}
+          {activeTransfer ? "Halt Transfer" : "Initiate AI Transfer Route"}
         </button>
 
         <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
@@ -491,10 +551,11 @@ export default function WaterSimulation() {
         </group>
 
         {/* === CENTRALIZED AI WATER ROUTING PIPELINES === */}
-        <UndergroundPipe start={[8, -8]} end={[0, 0]} isFlowing={isFlowing} /> 
-        <UndergroundPipe start={[0, 0]} end={[-8, -8]} isFlowing={isFlowing} /> 
-        <UndergroundPipe start={[-8, 8]} end={[0, 0]} isFlowing={false} /> 
-        <UndergroundPipe start={[0, 0]} end={[8, 8]} isFlowing={false} /> 
+        {/* All pipes are drawn from the Outer Node connecting inward to the AI Center [0,0] */}
+        <UndergroundPipe start={[-8, -8]} end={[0, 0]} isFlowing={isFlowing('reservoir')} isSender={isSender('reservoir')} /> 
+        <UndergroundPipe start={[8, -8]} end={[0, 0]} isFlowing={isFlowing('industry')} isSender={isSender('industry')} /> 
+        <UndergroundPipe start={[-8, 8]} end={[0, 0]} isFlowing={isFlowing('city')} isSender={isSender('city')} /> 
+        <UndergroundPipe start={[8, 8]} end={[0, 0]} isFlowing={isFlowing('farm')} isSender={isSender('farm')} /> 
 
         {/* === THE ZONES === */}
         <AIControlCentre 
@@ -509,9 +570,9 @@ export default function WaterSimulation() {
 
         <Facility 
           position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} 
-          label="MUNICIPAL RESERVOIR " 
+          label="MUNICIPAL RESERVOIR" 
           waterLevel={waterLevels.reservoir} 
-          maxCapacity={10000} 
+          maxCapacity={100} 
           modelPath="/models/reservoir.glb" 
           scale={3}
           modelOffset={1}
@@ -521,7 +582,8 @@ export default function WaterSimulation() {
           position={[8, 0.5, -8]} color="#c2410c" size={[2.5, 1, 2.5]} 
           label="INDUSTRIAL PARK" 
           waterLevel={waterLevels.industry} 
-          maxCapacity={5000} 
+          maxCapacity={82}
+          minThreshold={34} 
           modelPath="/models/industry.glb" 
           scale={2.5}
           modelOffset={-0.5} 
@@ -532,7 +594,8 @@ export default function WaterSimulation() {
           position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} 
           label="URBAN GRID" 
           waterLevel={waterLevels.city} 
-          maxCapacity={8000} 
+          maxCapacity={82}
+          minThreshold={34} 
           modelPath="/models/city.glb" 
           scale={0.06}
           modelOffset={-0.5} 
@@ -542,7 +605,8 @@ export default function WaterSimulation() {
           position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} 
           label="AGRICULTURAL SECTOR" 
           waterLevel={waterLevels.farm} 
-          maxCapacity={4000} 
+          maxCapacity={82}
+          minThreshold={34} 
           modelPath="/models/farm.glb" 
           scale={0.0005}
           modelOffset={1.3}
