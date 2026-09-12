@@ -372,10 +372,10 @@ function MovingTruck({
 
 // Map technical keys to display names
 const displayNames: Record<string, string> = {
-  reservoir: "Reservoir North",
+  reservoir: "Municipal Reservoir",
   industry: "Industrial Park",
   city: "Urban Grid",
-  farm: "Farm Sector"
+  farm: "Agricultural Sector"
 };
 
 export default function WaterSimulation() {
@@ -391,7 +391,8 @@ export default function WaterSimulation() {
   const [activeTransfer, setActiveTransfer] = useState<{ source: string, dest: string } | null>(null);
   const transferredSoFar = useRef(0);
 
-  // === NEW: Emergency State ===
+  // === NEW: Overflow & Emergency State ===
+  const [overflowError, setOverflowError] = useState<string | null>(null);
   const [criticalNode, setCriticalNode] = useState<string | null>(null);
 
   // 1. Core Transfer Logic
@@ -459,6 +460,7 @@ export default function WaterSimulation() {
     const amountNeeded = 37 - currentLevel;
 
     if (amountNeeded > 0) {
+      setOverflowError(null);
       setRouteConfig({ source: donor, dest: criticalNode });
       setTransferAmount(amountNeeded);
       transferredSoFar.current = 0;
@@ -482,13 +484,16 @@ export default function WaterSimulation() {
             <select 
               className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
               value={routeConfig.source}
-              onChange={(e) => setRouteConfig({...routeConfig, source: e.target.value})}
+              onChange={(e) => {
+                setRouteConfig({...routeConfig, source: e.target.value});
+                setOverflowError(null); // Clear error on change
+              }}
               disabled={!!activeTransfer}
             >
-              <option value="reservoir">Reservoir North</option>
+              <option value="reservoir">Municipal Reservoir</option>
               <option value="industry">Industrial Park</option>
               <option value="city">Urban Grid</option>
-              <option value="farm">Farm Sector</option>
+              <option value="farm">Agricultural Sector</option>
             </select>
           </div>
           <div className="flex flex-col gap-1 w-1/2">
@@ -496,13 +501,16 @@ export default function WaterSimulation() {
             <select 
               className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
               value={routeConfig.dest}
-              onChange={(e) => setRouteConfig({...routeConfig, dest: e.target.value})}
+              onChange={(e) => {
+                setRouteConfig({...routeConfig, dest: e.target.value});
+                setOverflowError(null); // Clear error on change
+              }}
               disabled={!!activeTransfer}
             >
-              <option value="reservoir">Reservoir North</option>
+              <option value="reservoir">Municipal Reservoir</option>
               <option value="industry">Industrial Park</option>
               <option value="city">Urban Grid</option>
-              <option value="farm">Farm Sector</option>
+              <option value="farm">Agricultural Sector</option>
             </select>
           </div>
         </div>
@@ -514,16 +522,40 @@ export default function WaterSimulation() {
             min="1"
             className="border border-slate-200 rounded p-1.5 text-slate-700 bg-slate-50 outline-none focus:border-blue-500"
             value={transferAmount}
-            onChange={(e) => setTransferAmount(Number(e.target.value))}
+            onChange={(e) => {
+              setTransferAmount(Number(e.target.value));
+              setOverflowError(null); // Clear error on change
+            }}
             disabled={!!activeTransfer}
           />
         </div>
+
+        {/* Display Overflow Error Message */}
+        {overflowError && (
+          <div className="text-red-600 text-xs font-bold bg-red-50 p-2 rounded-lg border border-red-200 shadow-sm flex items-start gap-2 mt-1">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{overflowError}</span>
+          </div>
+        )}
 
         <button 
           onClick={() => {
             if (activeTransfer) {
               setActiveTransfer(null);
+              setOverflowError(null);
             } else if (routeConfig.source !== routeConfig.dest && transferAmount > 0) {
+              // Extract the destination key and determine max capacity
+              const dst = routeConfig.dest as keyof typeof waterLevels;
+              const maxCapacity = dst === "reservoir" ? 100 : 82;
+              
+              // Validate if the transfer will cause an overflow
+              if (waterLevels[dst] + transferAmount > maxCapacity) {
+                setOverflowError(`Transfer blocked: Capacity exceeded. Max limit is ${maxCapacity}L.`);
+                return;
+              }
+
+              // All checks pass, initiate transfer
+              setOverflowError(null);
               transferredSoFar.current = 0;
               setActiveTransfer(routeConfig);
             }
