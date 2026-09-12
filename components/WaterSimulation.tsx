@@ -296,7 +296,7 @@ function MovingTruck({
   start, 
   end, 
   speed = 0.04, 
-  modelPath="/models/car.glb", 
+  modelPath="/aquaxchange_3d/models/car.glb", 
   scale = 0.004, 
   rotation = [0, 0, 0] 
 }: { 
@@ -582,11 +582,11 @@ export default function WaterSimulation() {
         <UndergroundPipe start={[8, 8]} end={[0, 0]} isFlowing={isFlowing('farm')} isSender={isSender('farm')} /> 
 
         {/* FACILITIES */}
-        <AIControlCentre position={[0, 0.5, 0]} color="#8b5cf6" size={[2, 1.5, 2]} label="AI CONTROL CENTRE" modelPath="/models/ai_center.glb" scale={1.5} modelOffset={-0.5} />
-        <Facility position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} label="MUNICIPAL RESERVOIR" waterLevel={waterLevels.reservoir} maxCapacity={100} modelPath="/models/reservoir.glb" scale={3} modelOffset={1} />
-        <Facility position={[8, 0.5, -8]} color="#c2410c" size={[2.5, 1, 2.5]} label="INDUSTRIAL PARK" waterLevel={waterLevels.industry} maxCapacity={82} minThreshold={34} modelPath="/models/industry.glb" scale={2.5} modelOffset={-0.5} rotation={[0, 3*(Math.PI/2), 0]} />
-        <Facility position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} label="URBAN GRID" waterLevel={waterLevels.city} maxCapacity={82} minThreshold={34} modelPath="/models/city.glb" scale={0.06} modelOffset={-0.5} />
-        <Facility position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} label="AGRICULTURAL SECTOR" waterLevel={waterLevels.farm} maxCapacity={82} minThreshold={34} modelPath="/models/farm.glb" scale={0.0005} modelOffset={1.3} />
+        <AIControlCentre position={[0, 0.5, 0]} color="#8b5cf6" size={[2, 1.5, 2]} label="AI CONTROL CENTRE" modelPath="/aquaxchange_3d/models/ai_center.glb" scale={1.5} modelOffset={-0.5} />
+        <Facility position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} label="MUNICIPAL RESERVOIR" waterLevel={waterLevels.reservoir} maxCapacity={100} modelPath="/aquaxchange_3d/models/reservoir.glb" scale={3} modelOffset={1} />
+        <Facility position={[8, 0.5, -8]} color="#c2410c" size={[2.5, 1, 2.5]} label="INDUSTRIAL PARK" waterLevel={waterLevels.industry} maxCapacity={82} minThreshold={34} modelPath="/aquaxchange_3d/models/industry.glb" scale={2.5} modelOffset={-0.5} rotation={[0, 3*(Math.PI/2), 0]} />
+        <Facility position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} label="URBAN GRID" waterLevel={waterLevels.city} maxCapacity={82} minThreshold={34} modelPath="/aquaxchange_3d/models/city.glb" scale={0.06} modelOffset={-0.5} />
+        <Facility position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} label="AGRICULTURAL SECTOR" waterLevel={waterLevels.farm} maxCapacity={82} minThreshold={34} modelPath="/aquaxchange_3d/models/farm.glb" scale={0.0005} modelOffset={1.3} />
 
         <DecorativeProp path="/models/reservoir.glb" position={[-10.75, 1.25, -8]} scale={3} rotation={[0, Math.PI , 0]} />
         <DecorativeProp path="/models/reservoir.glb" position={[-9, 1.25, -10.75]} scale={3} rotation={[0, Math.PI , 0]} />
