@@ -495,54 +495,10 @@ export default function WaterSimulation() {
               setActiveTransfer(routeConfig);
             }
           }}
-          className={`px-4 py-2 mt-1 rounded-lg font-bold transition-colors text-xs tracking-wider shadow ${activeTransfer ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+          className={`px-4 py-2 mt-1 rounded-lg font-bold transition-colors text-xs tracking-wider shadow ${activeTransfer ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-[#00e5ff] hover:bg-[#00cce6] text-black'}`}
         >
           {activeTransfer ? "Halt Transfer" : "Initiate AI Transfer Route"}
         </button>
-
-        <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
-          <span className="text-[11px] font-bold text-slate-500">Manual Test Inputs (Liters):</span>
-          
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-slate-700">Reservoir:</label>
-            <input 
-              type="number" 
-              value={waterLevels.reservoir}
-              onChange={(e) => setWaterLevels({...waterLevels, reservoir: Number(e.target.value)})}
-              className="w-24 px-2 py-1 border rounded text-right text-xs"
-            />
-          </div>
-
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-slate-700">Industry:</label>
-            <input 
-              type="number" 
-              value={waterLevels.industry}
-              onChange={(e) => setWaterLevels({...waterLevels, industry: Number(e.target.value)})}
-              className="w-24 px-2 py-1 border rounded text-right text-xs"
-            />
-          </div>
-
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-slate-700">Urban Grid:</label>
-            <input 
-              type="number" 
-              value={waterLevels.city}
-              onChange={(e) => setWaterLevels({...waterLevels, city: Number(e.target.value)})}
-              className="w-24 px-2 py-1 border rounded text-right text-xs"
-            />
-          </div>
-
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-slate-700">Farm Sector:</label>
-            <input 
-              type="number" 
-              value={waterLevels.farm}
-              onChange={(e) => setWaterLevels({...waterLevels, farm: Number(e.target.value)})}
-              className="w-24 px-2 py-1 border rounded text-right text-xs"
-            />
-          </div>
-        </div>
       </div>
 
       <Canvas 
