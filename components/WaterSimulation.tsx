@@ -588,15 +588,15 @@ export default function WaterSimulation() {
         <Facility position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} label="URBAN GRID" waterLevel={waterLevels.city} maxCapacity={82} minThreshold={34} modelPath="/aquaxchange_3d/models/city.glb" scale={0.06} modelOffset={-0.5} />
         <Facility position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} label="AGRICULTURAL SECTOR" waterLevel={waterLevels.farm} maxCapacity={82} minThreshold={34} modelPath="/aquaxchange_3d/models/farm.glb" scale={0.0005} modelOffset={1.3} />
 
-        <DecorativeProp path="/models/reservoir.glb" position={[-10.75, 1.25, -8]} scale={3} rotation={[0, Math.PI , 0]} />
-        <DecorativeProp path="/models/reservoir.glb" position={[-9, 1.25, -10.75]} scale={3} rotation={[0, Math.PI , 0]} />
+        <DecorativeProp path="/aquaxchange_3d/models/reservoir.glb" position={[-10.75, 1.25, -8]} scale={3} rotation={[0, Math.PI , 0]} />
+        <DecorativeProp path="/aquaxchange_3d/models/reservoir.glb" position={[-9, 1.25, -10.75]} scale={3} rotation={[0, Math.PI , 0]} />
 
         {treeCoordinates.map((tree, index) => (
-          <DecorativeProp key={`tree-${index}`} path="/models/tree.glb" position={tree.position as [number, number, number]} scale={tree.scale} rotation={tree.rotation as [number, number, number]} />
+          <DecorativeProp key={`tree-${index}`} path="/aquaxchange_3d/models/tree.glb" position={tree.position as [number, number, number]} scale={tree.scale} rotation={tree.rotation as [number, number, number]} />
         ))}
 
         {roadCoordinates.map((road, index) => (
-          <DecorativeProp key={`road-${index}`} path="/models/road_straight.glb" position={road.position as [number, number, number]} rotation={road.rotation as [number, number, number]} scale={2} />
+          <DecorativeProp key={`road-${index}`} path="/aquaxchange_3d/models/road_straight.glb" position={road.position as [number, number, number]} rotation={road.rotation as [number, number, number]} scale={2} />
         ))}
         
         <MovingTruck start={[-12, 0.01, -13]} end={[12, 0.01, -13]} speed={0.06} rotation={[0, Math.PI/2 , 0]}/>
