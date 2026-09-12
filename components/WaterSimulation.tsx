@@ -4,6 +4,7 @@ import { useRef, useMemo, useState, useEffect } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Grid, Html, QuadraticBezierLine, useGLTF } from "@react-three/drei";
+import { AlertTriangle } from "lucide-react"; // <-- Added icon for the alert
 
 // 1. Define roads FIRST
 const roadCoordinates = [
@@ -316,20 +317,16 @@ function MovingTruck({
   const dirX = dx / totalDistance;
   const dirZ = dz / totalDistance;
 
-  // useFrame runs every frame (60fps) to animate the truck
   useFrame(() => {
     if (truckRef.current) {
-      // Move the truck
       truckRef.current.position.x += dirX * speed;
       truckRef.current.position.z += dirZ * speed;
 
-      // Calculate how far it has driven
       const traveled = Math.sqrt(
         Math.pow(truckRef.current.position.x - start[0], 2) + 
         Math.pow(truckRef.current.position.z - start[2], 2)
       );
 
-      // If it reaches the end point, teleport it back to the start
       if (traveled >= totalDistance) {
         truckRef.current.position.x = start[0];
         truckRef.current.position.z = start[2];
@@ -342,19 +339,15 @@ function MovingTruck({
       {modelPath && gltf ? (
         <primitive object={gltf.scene.clone()} scale={scale} />
       ) : (
-        // Fallback procedural truck (so you can test it immediately without a .glb)
         <group position={[0, 0.25, 0]}>
-          {/* Truck Cab */}
           <mesh position={[0.4, 0, 0]} castShadow>
             <boxGeometry args={[0.3, 0.4, 0.3]} />
             <meshStandardMaterial color="#0ea5e9" roughness={0.3} />
           </mesh>
-          {/* Truck Trailer */}
           <mesh position={[-0.2, 0.1, 0]} castShadow>
             <boxGeometry args={[0.8, 0.6, 0.35]} />
             <meshStandardMaterial color="#f8fafc" roughness={0.5} />
           </mesh>
-          {/* Wheels */}
           <mesh position={[0.4, -0.2, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.1, 0.1, 0.05, 16]} />
             <meshStandardMaterial color="#1e293b" />
@@ -377,8 +370,15 @@ function MovingTruck({
   );
 }
 
+// Map technical keys to display names
+const displayNames: Record<string, string> = {
+  reservoir: "Reservoir North",
+  industry: "Industrial Park",
+  city: "Urban Grid",
+  farm: "Farm Sector"
+};
+
 export default function WaterSimulation() {
-  // Scaled down initial state to fit the new 82L/100L limits
   const [waterLevels, setWaterLevels] = useState({
     reservoir: 100,
     industry: 50,
@@ -386,20 +386,18 @@ export default function WaterSimulation() {
     farm: 40,
   });
 
-  // Track the user's dropdown choices and amount
   const [routeConfig, setRouteConfig] = useState({ source: "industry", dest: "city" });
   const [transferAmount, setTransferAmount] = useState(20);
-  
-  // Track the actively flowing transfer
   const [activeTransfer, setActiveTransfer] = useState<{ source: string, dest: string } | null>(null);
-  
-  // Track how much water has been pumped in the current active transfer
   const transferredSoFar = useRef(0);
 
+  // === NEW: Emergency State ===
+  const [criticalNode, setCriticalNode] = useState<string | null>(null);
+
+  // 1. Core Transfer Logic
   useEffect(() => {
     if (!activeTransfer) return;
 
-    // 1. Halt if we successfully pumped the requested amount
     if (transferredSoFar.current >= transferAmount) {
       setActiveTransfer(null);
       return;
@@ -409,38 +407,75 @@ export default function WaterSimulation() {
     const dst = activeTransfer.dest as keyof typeof waterLevels;
     const getMaxCapacity = (key: string) => (key === "reservoir" ? 100 : 82);
 
-    // 2. Halt if source empties or destination hits max capacity
     if (waterLevels[src] <= 0 || waterLevels[dst] >= getMaxCapacity(dst)) {
       setActiveTransfer(null);
       return;
     }
 
-    // 3. Schedule the next single transfer tick
     const timer = setTimeout(() => {
-      // Safely increment outside of the state updater function
       transferredSoFar.current += 1;
-      
       setWaterLevels((prev) => ({
         ...prev,
         [src]: prev[src] - 1,
         [dst]: prev[dst] + 1,
       }));
-    }, 150); // Speed of water transfer
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [activeTransfer, transferAmount, waterLevels]);
 
-  // Helper functions to pass the correct booleans to the UndergroundPipe components
+  // 2. Automated Emergency Monitoring
+  useEffect(() => {
+    // Only check when the system is idle
+    if (!activeTransfer) {
+      const nodesToCheck = ["industry", "city", "farm"];
+      let foundCritical: string | null = null;
+      
+      for (const node of nodesToCheck) {
+        if (waterLevels[node as keyof typeof waterLevels] <= 34) {
+          foundCritical = node;
+          break; // Trigger for the first one found
+        }
+      }
+      setCriticalNode(foundCritical);
+    } else {
+      setCriticalNode(null); // Hide alert during active transfers
+    }
+  }, [waterLevels, activeTransfer]);
+
+  // 3. Emergency Logic Execution
+  const handleEmergencyRedistribution = () => {
+    if (!criticalNode) return;
+    
+    // Find the donor (exclude Reservoir and the Critical Node itself)
+    const candidates = ["industry", "city", "farm"].filter((n) => n !== criticalNode);
+    
+    const donor = candidates.reduce((a, b) => 
+      waterLevels[a as keyof typeof waterLevels] > waterLevels[b as keyof typeof waterLevels] ? a : b
+    );
+
+    // Calculate exact amount needed to reach 37L (34 min + 3 buffer)
+    const currentLevel = waterLevels[criticalNode as keyof typeof waterLevels];
+    const amountNeeded = 37 - currentLevel;
+
+    if (amountNeeded > 0) {
+      setRouteConfig({ source: donor, dest: criticalNode });
+      setTransferAmount(amountNeeded);
+      transferredSoFar.current = 0;
+      setActiveTransfer({ source: donor, dest: criticalNode });
+    }
+  };
+
   const isFlowing = (key: string) => activeTransfer?.source === key || activeTransfer?.dest === key;
   const isSender = (key: string) => activeTransfer?.source === key;
 
   return (
     <div className="w-full h-screen bg-slate-950 relative"> 
       
+      {/* === STANDARD CONTROL PANEL === */}
       <div className="absolute top-6 left-6 z-10 bg-white p-4 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-3 w-80 pointer-events-auto">
         <h2 className="text-slate-800 font-bold text-sm tracking-wide">AI TELEMETRY & WATER LEVELS</h2>
         
-        {/* === DYNAMIC ROUTING DROPDOWNS === */}
         <div className="flex gap-3 text-xs mb-1">
           <div className="flex flex-col gap-1 w-1/2">
             <label className="font-bold text-slate-500">Source Node</label>
@@ -472,7 +507,6 @@ export default function WaterSimulation() {
           </div>
         </div>
 
-        {/* === TRANSFER AMOUNT INPUT === */}
         <div className="flex flex-col gap-1 mb-1 text-xs">
           <label className="font-bold text-slate-500">Transfer Amount (L)</label>
           <input 
@@ -490,7 +524,6 @@ export default function WaterSimulation() {
             if (activeTransfer) {
               setActiveTransfer(null);
             } else if (routeConfig.source !== routeConfig.dest && transferAmount > 0) {
-              // Reset the transfer counter to 0 before starting a new flow
               transferredSoFar.current = 0;
               setActiveTransfer(routeConfig);
             }
@@ -501,148 +534,74 @@ export default function WaterSimulation() {
         </button>
       </div>
 
+      {/* === EMERGENCY REDISTRIBUTION POP-UP === */}
+      {criticalNode && !activeTransfer && (
+        <div className="absolute bottom-6 left-6 z-20 bg-white/95 backdrop-blur-md p-5 rounded-xl border-l-4 border-red-500 shadow-2xl w-80 pointer-events-auto">
+          <h3 className="text-red-600 font-bold mb-2 flex items-center gap-2">
+            <AlertTriangle size={18} />
+            CRITICAL LEVEL DETECTED
+          </h3>
+          <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+            <strong className="text-slate-800">{displayNames[criticalNode]}</strong> water level has dropped to <strong>{waterLevels[criticalNode as keyof typeof waterLevels]}L</strong> (Below the safe threshold of 34L).
+          </p>
+          <button
+            onClick={handleEmergencyRedistribution}
+            className="w-full py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg text-xs shadow-md transition-colors tracking-wide"
+          >
+            Initiate Emergency Redistribution
+          </button>
+        </div>
+      )}
+
       <Canvas 
         camera={{ position: [20, 20, 20], fov: 38 }} 
         shadows
       >
-        
         <ambientLight intensity={0.6} />
         <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow />
         <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
         
         <Grid renderOrder={-1} position={[0, -0.5, 0]} infiniteGrid fadeDistance={60} fadeStrength={5} cellColor="#e2e8f0" sectionColor="#cbd5e1" />
 
-        {/* === SHRINKED TERRAIN PLATFORM (27.5 x 27.5 Layout) === */}
         <group position={[0, 0, 0]}>
           <mesh receiveShadow position={[0, -1.5, 0]}>
-            {/* Reduced from 32 to 27.5 to cut off the extra outer land */}
             <boxGeometry args={[25, 3, 27.5]} />
-            <meshPhysicalMaterial 
-              color="#f8fafc" 
-              transparent 
-              opacity={0.3} 
-              roughness={0.1} 
-              transmission={0.9} 
-              depthWrite={false} 
-            />
+            <meshPhysicalMaterial color="#f8fafc" transparent opacity={0.3} roughness={0.1} transmission={0.9} depthWrite={false} />
           </mesh>
 
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
-            {/* Reduced from 32 to 27.5 to match the box underneath */}
             <planeGeometry args={[25, 27.5]} />
             <meshStandardMaterial color="#22c55e" roughness={0.8} metalness={0.1} />
           </mesh>
         </group>
 
-        {/* === CENTRALIZED AI WATER ROUTING PIPELINES === */}
-        {/* All pipes are drawn from the Outer Node connecting inward to the AI Center [0,0] */}
+        {/* PIPELINES */}
         <UndergroundPipe start={[-8, -8]} end={[0, 0]} isFlowing={isFlowing('reservoir')} isSender={isSender('reservoir')} /> 
         <UndergroundPipe start={[8, -8]} end={[0, 0]} isFlowing={isFlowing('industry')} isSender={isSender('industry')} /> 
         <UndergroundPipe start={[-8, 8]} end={[0, 0]} isFlowing={isFlowing('city')} isSender={isSender('city')} /> 
         <UndergroundPipe start={[8, 8]} end={[0, 0]} isFlowing={isFlowing('farm')} isSender={isSender('farm')} /> 
 
-        {/* === THE ZONES === */}
-        <AIControlCentre 
-          position={[0, 0.5, 0]} 
-          color="#8b5cf6" 
-          size={[2, 1.5, 2]} 
-          label="AI CONTROL CENTRE" 
-          modelPath="/models/ai_center.glb" 
-          scale={1.5} 
-          modelOffset={-0.5} 
-        />
+        {/* FACILITIES */}
+        <AIControlCentre position={[0, 0.5, 0]} color="#8b5cf6" size={[2, 1.5, 2]} label="AI CONTROL CENTRE" modelPath="/models/ai_center.glb" scale={1.5} modelOffset={-0.5} />
+        <Facility position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} label="MUNICIPAL RESERVOIR" waterLevel={waterLevels.reservoir} maxCapacity={100} modelPath="/models/reservoir.glb" scale={3} modelOffset={1} />
+        <Facility position={[8, 0.5, -8]} color="#c2410c" size={[2.5, 1, 2.5]} label="INDUSTRIAL PARK" waterLevel={waterLevels.industry} maxCapacity={82} minThreshold={34} modelPath="/models/industry.glb" scale={2.5} modelOffset={-0.5} rotation={[0, 3*(Math.PI/2), 0]} />
+        <Facility position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} label="URBAN GRID" waterLevel={waterLevels.city} maxCapacity={82} minThreshold={34} modelPath="/models/city.glb" scale={0.06} modelOffset={-0.5} />
+        <Facility position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} label="AGRICULTURAL SECTOR" waterLevel={waterLevels.farm} maxCapacity={82} minThreshold={34} modelPath="/models/farm.glb" scale={0.0005} modelOffset={1.3} />
 
-        <Facility 
-          position={[-8, 0.25, -8]} color="#0369a1" size={[3, 0.5, 3]} 
-          label="MUNICIPAL RESERVOIR" 
-          waterLevel={waterLevels.reservoir} 
-          maxCapacity={100} 
-          modelPath="/models/reservoir.glb" 
-          scale={3}
-          modelOffset={1}
-        />
+        <DecorativeProp path="/models/reservoir.glb" position={[-10.75, 1.25, -8]} scale={3} rotation={[0, Math.PI , 0]} />
+        <DecorativeProp path="/models/reservoir.glb" position={[-9, 1.25, -10.75]} scale={3} rotation={[0, Math.PI , 0]} />
 
-        <Facility 
-          position={[8, 0.5, -8]} color="#c2410c" size={[2.5, 1, 2.5]} 
-          label="INDUSTRIAL PARK" 
-          waterLevel={waterLevels.industry} 
-          maxCapacity={82}
-          minThreshold={34} 
-          modelPath="/models/industry.glb" 
-          scale={2.5}
-          modelOffset={-0.5} 
-          rotation={[0, 3*(Math.PI/2), 0]}
-        />
-        
-        <Facility 
-          position={[-8, 0.5, 8]} color="#475569" size={[2.5, 1, 2.5]} 
-          label="URBAN GRID" 
-          waterLevel={waterLevels.city} 
-          maxCapacity={82}
-          minThreshold={34} 
-          modelPath="/models/city.glb" 
-          scale={0.06}
-          modelOffset={-0.5} 
-        />
-        
-        <Facility 
-          position={[8, 0.125, 8]} color="#15803d" size={[4, 0.25, 4]} 
-          label="AGRICULTURAL SECTOR" 
-          waterLevel={waterLevels.farm} 
-          maxCapacity={82}
-          minThreshold={34} 
-          modelPath="/models/farm.glb" 
-          scale={0.0005}
-          modelOffset={1.3}
-        />
-
-        {/* Purely decorative extra water tanks */}
-        <DecorativeProp 
-          path="/models/reservoir.glb" 
-          position={[-10.75, 1.25, -8]}        
-          scale={3}                  
-          rotation={[0, Math.PI , 0]}  
-        />
-
-        <DecorativeProp 
-          path="/models/reservoir.glb" 
-          position={[-9, 1.25, -10.75]}        
-          scale={3}                  
-          rotation={[0, Math.PI , 0]}  
-        />
-
-        {/* Dynamic Trees */}
         {treeCoordinates.map((tree, index) => (
-          <DecorativeProp 
-            key={`tree-${index}`}
-            path="/models/tree.glb" 
-            position={tree.position as [number, number, number]} 
-            scale={tree.scale} 
-            rotation={tree.rotation as [number, number, number]}
-          />
+          <DecorativeProp key={`tree-${index}`} path="/models/tree.glb" position={tree.position as [number, number, number]} scale={tree.scale} rotation={tree.rotation as [number, number, number]} />
         ))}
 
-        {/* Dynamic Roads (Perimeter Highway) */}
         {roadCoordinates.map((road, index) => (
-          <DecorativeProp 
-            key={`road-${index}`}
-            path="/models/road_straight.glb" 
-            position={road.position as [number, number, number]} 
-            rotation={road.rotation as [number, number, number]}
-            scale={2} 
-          />
+          <DecorativeProp key={`road-${index}`} path="/models/road_straight.glb" position={road.position as [number, number, number]} rotation={road.rotation as [number, number, number]} scale={2} />
         ))}
-        {/* === MOVING VEHICLES === */}
-        {/* North Road (Driving East) */}
+        
         <MovingTruck start={[-12, 0.01, -13]} end={[12, 0.01, -13]} speed={0.06} rotation={[0, Math.PI/2 , 0]}/>
-        
-        {/* South Road (Driving West) */}
         <MovingTruck start={[12, 0.01, 13]} end={[-12, 0.01, 13]} speed={0.05} rotation={[0, -Math.PI /2, 0]} />
-        
-        {/* East Road (Driving South) */}
         <MovingTruck start={[11.65, 0.01, -12]} end={[11.65, 0.01, 12]} speed={0.07} rotation={[0, 0 , 0]} />
-        
-        {/* West Road (Driving North) */}
         <MovingTruck start={[-12.65, 0.01, 12]} end={[-12.65, 0.01, -12]} speed={0.04} rotation={[0, Math.PI, 0]} />
       </Canvas>
     </div>
